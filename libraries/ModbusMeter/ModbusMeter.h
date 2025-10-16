@@ -20,6 +20,9 @@ public:
     float GetCurrentPhase(int Connector);
     float GetPowerPhase(int Connector);
     float GetEnergyPhase(int Connector);
+    float TotalkwhImport();
+    float TotalkwhExport();
+    float TotalPower();
     float GetPowerfectorPhase(int Connector);
     float GetReactivePowerPhase(int Connector);
   

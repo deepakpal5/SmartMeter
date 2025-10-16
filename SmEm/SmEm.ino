@@ -45,7 +45,7 @@ void RS485Metertask(void *pvParameters){
     modbusInstance->ModbusUartinitilize();
   while (true) {
       modbusInstance->ModbusLOOP();
-      vTaskDelay(1100 / portTICK_PERIOD_MS); 
+      vTaskDelay(500 / portTICK_PERIOD_MS); 
 
   }
 }

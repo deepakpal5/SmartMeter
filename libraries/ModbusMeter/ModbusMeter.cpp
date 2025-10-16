@@ -3,7 +3,8 @@
 
 
 HardwareSerial ModbusSerial(1);  // Use UART1
-float VN1=0.0,Cu1=0.0,TP1=0.0,VN2=0.0,Cu2=0.0,TP2=0.0,VN3=0.0,Cu3=0.0,TP3=0.0,RePow1=0.0,RePow2=0.0,RePow3=0.0,pf1=0.0,pf2=0.0,pf3=0.0,TE1=0.0,TE2=0.0,TE3=0.0;
+float VN1=0.0,Cu1=0.0,TP1=0.0,VN2=0.0,Cu2=0.0,TP2=0.0,VN3=0.0,Cu3=0.0,TP3=0.0,RePow1=0.0,RePow2=0.0,RePow3=0.0,pf1=0.0,pf2=0.0,pf3=0.0,TE1=0.0,TE2=0.0,TE3=0.0,VN12=0.0,VN23=0.0,VN31=0.0,
+TKWHImport=0.0,TKWHExport=0.0,TotalKW=0.0;
 int m=0;
 byte MeterRqstArray[]  = {1, 4, 0, 0, 0, 113, 48, 46}; // AddressCode,fnCOde,2_Byte Starting Resister,2_Byte DataLenght, 2_Byte Chuksum
 
@@ -36,7 +37,8 @@ postTransmission();
           m++;
           return false;
         }
-        delay(10);
+        // delay(10);
+         vTaskDelay(20 / portTICK_PERIOD_MS);
       }
 
       m = 0;
@@ -70,14 +72,14 @@ postTransmission();
 
 bool ModbusMeter::checkRecivingdataOnModbus() {
   const int EXPECTED_BYTES = 231;
- 
+//  Serial.println("Sending Rqst: -> "+String(ModbusSerial.available()));
 
   if (ModbusSerial.available() != EXPECTED_BYTES) return false;
 
   byte receivedData[EXPECTED_BYTES] = {0};
   ModbusSerial.readBytes(receivedData, EXPECTED_BYTES);
 
-// Serial.println("Received data: -> ");
+// Serial.println("Received data: -> =================================================");
 // for (size_t i = 0; i < EXPECTED_BYTES; i++)
 // {
 //   Serial.print(receivedData[i],HEX);
@@ -95,42 +97,38 @@ bool ModbusMeter::checkRecivingdataOnModbus() {
   VN1 = extract(3);
   VN2 = extract(7);
   VN3 = extract(11);
+
+  VN12= extract(19);
+  VN23= extract(23);
+  VN31= extract(27);  
+
   Cu1 = extract(35);
   Cu2 = extract(39);
   Cu3 = extract(43);
-  TP1 = extract(51) * 1000;
-  TP2 = extract(55) * 1000;
-  TP3 = extract(59) * 1000;
+
+  TP1 = extract(51);
+  TP2 = extract(55);
+  TP3 = extract(59);
+
   RePow1 = extract(63);
   RePow2 = extract(67);
   RePow3 = extract(71);
+  
+  TotalKW = extract(87);
+
   pf1 = extract(99);
   pf2 = extract(103);
   pf3 = extract(107);
-  TE1 = extract(155) * 1000;
-  TE2 = extract(159) * 1000;
-  TE3 = extract(163) * 1000;
 
-  static float OldTE1 = TE1, OldTE2 = TE2, OldTE3 = TE3;
+  TE1 = extract(155);
+  TE2 = extract(159);
+  TE3 = extract(163);
 
-  if (m >= 40) {
-    OldTE1 = TE1;
-    OldTE2 = TE2;
-    OldTE3 = TE3;
-  }
+  TKWHImport = extract(179);
+  TKWHExport = extract(183); 
 
-  // Ensure energy values only increase realistically
-  auto validateEnergy = [](float &TE, float &oldTE) {
-    if (TE >= oldTE && TE < oldTE + 90 && TE >= 0) {
-      oldTE = TE;
-    } else {
-      TE = oldTE;
-    }
-  };
 
-  validateEnergy(TE1, OldTE1);
-  validateEnergy(TE2, OldTE2);
-  validateEnergy(TE3, OldTE3);
+
 // Serial.println("VN1 : "+String(VN1)+" VN2 : "+String(VN2)+" VN3 : "+String(VN3)+" Cu1 : "+String(Cu1)+" Cu2 : "+String(Cu2)+" Cu3 : "+String(Cu3));
   return true;
 }
@@ -138,59 +136,67 @@ bool ModbusMeter::checkRecivingdataOnModbus() {
 
 
 
-float ModbusMeter ::GetVoltagePhase(int Connector){
-  if(m>=80) return 0;
-  // if (TestingHMIE)return 220;
-  if (Connector==1)
-  {
-  return VN1;
+
+  float ModbusMeter::GetVoltagePhase(int Connector) {
+    if (m >= 200) return 0;
+    switch (Connector) {
+      case 1:
+        return VN1;
+      case 2:
+        return VN2;
+      case 3:
+        return VN3;
+      case 12:
+        return VN12;
+      case 23:
+        return VN23;
+      case 31:
+        return VN31;
+      default:
+        return 0; 
+    }
   }
-  else if (Connector==2)
-  {
-    return VN2;
-  }
-  else if (Connector==3)
-  {
-   return VN3;
-  }  
-}
+
 
 
 
 
 float ModbusMeter::GetCurrentPhase(int Connector){
-// return 5;
 
-  if(m>=40) return 0;
-   if (Connector==1)
-  {
-    
-  return Cu1;  
-  }
-  else if (Connector==2)
-  {
-    return Cu2;
-  }
-  else if (Connector==3)
-  {
-   return Cu3; 
-  } 
+
+  if(m>=200) return 0;
+
+
+ switch (Connector) {
+      case 1:
+        return Cu1;
+      case 2:
+        return Cu2;
+      case 3:
+        return Cu3;
+      
+      default:
+        return 0;
+    }
+
+
+
 }
 
 float ModbusMeter::GetPowerPhase(int Connector){
-  if(m>=40) return 0;
-   if (Connector==1)
-  {
-  return TP1;  
-  }
-  else if (Connector==2)
-  {
-    return TP2;
-  }
-  else if (Connector==3)
-  {
-   return TP3; 
-  } 
+  if(m>=200) return 0;
+
+   switch (Connector) {
+      case 1:
+        return TP1;
+      case 2:
+        return TP2;
+      case 3:
+        return TP3;
+      
+      default:
+        return 0;
+    }
   
 }
 
@@ -198,54 +204,61 @@ float ModbusMeter::GetPowerPhase(int Connector){
 
 float ModbusMeter::GetEnergyPhase(int Connector){
   
-   if (Connector==1)
-  {
-   
-  return TE1;  
-  }
-  else if (Connector==2)
-  {
-    return TE2;
-  }
-  else if (Connector==3)
-  {
-   return TE3; 
-  } 
+   switch (Connector) {
+      case 1:
+        return TE1;
+      case 2:
+        return TE2;
+      case 3:
+        return TE3;
+      
+      default:
+        return 0;
+    }
 }
 
 float ModbusMeter::GetPowerfectorPhase(int Connector){
 
   
-   if (Connector==1)
-  {
-  return pf1;  
-  }
-  else if (Connector==2)
-  {
-    return pf2;
-  }
-  else if (Connector==3)
-  {
-   return pf3; 
-  } 
+  switch (Connector) {
+      case 1:
+        return pf1;
+      case 2:
+        return pf2;
+      case 3:
+        return pf3;
+      
+      default:
+        return 0; 
+    }
 
   }
 float ModbusMeter::GetReactivePowerPhase(int Connector){
-   if (Connector==1)
-  {
-  return RePow1;  
-  }
-  else if (Connector==2)
-  {
-    return RePow2;
-  }
-  else if (Connector==3)
-  {
-   return RePow3; 
-  } 
-  
+
+   switch (Connector) {
+      case 1:
+        return RePow1;
+      case 2:
+        return RePow2;
+      case 3:
+        return RePow3;
+      
+      default:
+        return 0;
+    }
   }
 
+float ModbusMeter::TotalkwhImport(){
+  return TKWHImport;
+}
+
+float ModbusMeter::TotalkwhExport(){
+  return TKWHExport;
+}
+
+float ModbusMeter::TotalPower(){
+  return TotalKW;
+}
 float ModbusMeter::dataformatter(byte data1, byte data2, byte data3, byte data4){
   byte binaryvalue[32];
   for(int i=0; i<8; i++)
@@ -289,6 +302,8 @@ float ModbusMeter::dataformatter(byte data1, byte data2, byte data3, byte data4)
 }
 
 void ModbusMeter::preTransmission() {
+
+  while (ModbusSerial.available()) ModbusSerial.read();  
   digitalWrite(RS485Enable, HIGH);
 delay(2);
 }
@@ -296,26 +311,33 @@ delay(2);
 void ModbusMeter::postTransmission() {
    ModbusSerial.flush();         // Wait until TX is complete
   digitalWrite(RS485Enable, LOW); // Switch to receive mode
+  delay(5);
   
 
 }
+
+
+
+
+
+
 String ModbusMeter::getdataSendToServer(){
   DynamicJsonDocument meterDataFrame(1024);
     meterDataFrame["Voltage V1N (V)"] =      String(GetVoltagePhase(1));
     meterDataFrame["Voltage V2N (V)"] =      String(GetVoltagePhase(2));
     meterDataFrame["Voltage V3N (V)"] =      String(GetVoltagePhase(3));
-    meterDataFrame["Voltage V12 (V)"] =      String(GetVoltagePhase(1));
-    meterDataFrame["Voltage V23 (V)"] =      String(GetVoltagePhase(2));
-    meterDataFrame["Voltage V31 (V)"] =      String(GetVoltagePhase(3));
+    meterDataFrame["Voltage V12 (V)"] =      String(GetVoltagePhase(12));
+    meterDataFrame["Voltage V23 (V)"] =      String(GetVoltagePhase(23));
+    meterDataFrame["Voltage V31 (V)"] =      String(GetVoltagePhase(31));
     meterDataFrame["Current I1 (A)"] =       String(GetCurrentPhase(1));
     meterDataFrame["Current I2 (A)"] =       String(GetCurrentPhase(2));
     meterDataFrame["Current I3 (A)"] =       String(GetCurrentPhase(3));
     meterDataFrame["kW1"] =                  String(GetPowerPhase(1));
     meterDataFrame["kW2"] =                  String(GetPowerPhase(2));
     meterDataFrame["kW3"] =                  String(GetPowerPhase(3));
-    meterDataFrame["Total kWh -Import"] =    String(GetEnergyPhase(1));
-    meterDataFrame["Total kWh -Export"] =    String(GetEnergyPhase(2));
-    meterDataFrame["Total kW"] =             String(GetEnergyPhase(3));
+    meterDataFrame["Total kWh -Import"] =    String(TotalkwhImport());
+    meterDataFrame["Total kWh -Export"] =    String(TotalkwhExport());
+    meterDataFrame["Total kW"] =             String(TotalPower());
     meterDataFrame["PF1"] =                  String(GetPowerfectorPhase(1));
     meterDataFrame["PF2"] =                  String(GetPowerfectorPhase(2));
     meterDataFrame["PF3"] =                  String(GetPowerfectorPhase(3));
@@ -331,7 +353,7 @@ String meterDataString;
     
 
 
- Serial.println("Meter Data : "+meterDataString);   
+//  Serial.println("Meter Data : "+meterDataString);   
     return meterDataString;
 }
 
